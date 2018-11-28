@@ -1,0 +1,14 @@
+Shaders:
+	1) Object space is the object's vertices relative to the object's origin. In the case of a 1x1x1 cube, your vertices would be:
+
+	( 0.5,  0.5, 0.5)
+	(-0.5,  0.5, 0.5)
+	( 0.5, -0.5, 0.5)
+	(-0.5, -0.5, 0.5)
+	etc.
+
+	2) World space is where the object is in your world. If you want this cube to be at (15, 10), you'd create a translation matrix that, when multiplied with each vertex, would center your vertices around (15, 10). For example, the first vertex would become (15.5, 10.5, 0.5). The matrix to go from object to world space is called the "model" matrix.
+
+	3) Eye Space (sometimes called Camera space) is the world relative to the location of the viewer. Since this has to be a matrix that each vertex is multiplied by, it's technically the inverse of the camera's orientation. That is, if you want a camera at (0, 0, -10), your "view" matrix has to be a translation of (0, 0, 10). That way all the objects in the world are forward 10 units, making it look like you are backwards 10 units.
+
+	4) Projection space is how we apply a correct perspective to a scene (assuming you're not using an orthographic projection). This is almost always represented by a frustum, and this article can explain that better than I can. Essentially you are mapping 3d space onto another skewed space.
