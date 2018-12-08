@@ -8,4 +8,4 @@ SUBDIRS += alphaBlending
 
 # Afegiu a SUBDIRS els vostres plugins!
 
-SUBDIRS += modelInfo2
+SUBDIRS += draw_bounding_box

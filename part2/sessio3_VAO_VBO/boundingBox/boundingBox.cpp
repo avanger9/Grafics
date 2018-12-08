@@ -3,19 +3,19 @@
 
 void BoundingBox::onPluginLoad()
 {
- glwidget()->makeCurrent();
+	glwidget()->makeCurrent();
 
-  // Carrega shader, compila i munta
-  vs = new QOpenGLShader(QOpenGLShader::Vertex, this);
-  vs->compileSourceFile("boundingBox.vert");
+	// Carrega shader, compila i munta
+	vs = new QOpenGLShader(QOpenGLShader::Vertex, this);
+	vs->compileSourceFile("boundingBox.vert");
 
-  fs = new QOpenGLShader(QOpenGLShader::Fragment, this);
-  fs->compileSourceFile("boundingBox.frag");
+	fs = new QOpenGLShader(QOpenGLShader::Fragment, this);
+	fs->compileSourceFile("boundingBox.frag");
 
-  program = new QOpenGLShaderProgram(this);
-  program->addShader(vs);
-  program->addShader(fs);
-  program->link();
+	program = new QOpenGLShaderProgram(this);
+	program->addShader(vs);
+	program->addShader(fs);
+	program->link();
 }
 
 void BoundingBox::preFrame()
@@ -25,49 +25,49 @@ void BoundingBox::preFrame()
 
 void BoundingBox::postFrame()
 {
-  GLWidget &g = *glwidget();
+	GLWidget &g = *glwidget();
 
-  program->bind();
-  program->setUniformValue("mvp",
-                           camera()->projectionMatrix() *
-                           camera()->viewMatrix());
-  
-  // Genera la caixa englobat
-  cleanUp();
-  createBox();
+	program->bind();
+	program->setUniformValue("mvp",
+	                       camera()->projectionMatrix() *
+	                       camera()->viewMatrix());
 
-  // Crea VAO de la caixa englobant
-  GLuint VAO;
-  g.glGenVertexArrays(1, &VAO);
-  g.glBindVertexArray(VAO);
+	// Genera la caixa englobat
+	cleanUp();
+	createBox();
 
-  // Crea VBO de geometria
-  GLuint coordBufferID; 
-  g.glGenBuffers(1, &coordBufferID);
-  g.glBindBuffer(GL_ARRAY_BUFFER, coordBufferID); 
-  g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*vertices.size(), 
-                 &vertices[0], GL_STATIC_DRAW);
-  g.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  g.glEnableVertexAttribArray(0);
+	// Crea VAO de la caixa englobant
+	GLuint VAO;
+	g.glGenVertexArrays(1, &VAO);
+	g.glBindVertexArray(VAO);
 
-  // Crea buffer d'IDs
-  GLuint indexBufferID;
-  g.glGenBuffers(1, &indexBufferID);
-  g.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferID);
-  g.glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int)*indices.size(),
-                 &indices[0], GL_STATIC_DRAW);
+	// Crea VBO de geometria
+	GLuint coordBufferID; 
+	g.glGenBuffers(1, &coordBufferID);
+	g.glBindBuffer(GL_ARRAY_BUFFER, coordBufferID); 
+	g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*vertices.size(), 
+	             &vertices[0], GL_STATIC_DRAW);
+	g.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	g.glEnableVertexAttribArray(0);
 
-  // El VAO ha estat definit
-  g.glBindVertexArray(0);
+	// Crea buffer d'IDs
+	GLuint indexBufferID;
+	g.glGenBuffers(1, &indexBufferID);
+	g.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferID);
+	g.glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int)*indices.size(),
+	             &indices[0], GL_STATIC_DRAW);
 
-  // Dibuxa el VAO de la caixa englobat
-  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  g.glBindVertexArray(VAO);
-  g.glDrawElements(GL_TRIANGLES, indices.size(), 
-                   GL_UNSIGNED_INT, (GLvoid*) 0); 
-  g.glBindVertexArray(0);
+	// El VAO ha estat definit
+	g.glBindVertexArray(0);
 
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	// Dibuxa el VAO de la caixa englobat
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	g.glBindVertexArray(VAO);
+	g.glDrawElements(GL_TRIANGLES, indices.size(), 
+	               GL_UNSIGNED_INT, (GLvoid*) 0); 
+	g.glBindVertexArray(0);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void BoundingBox::onObjectAdd()
@@ -103,17 +103,17 @@ void BoundingBox::mouseMoveEvent(QMouseEvent *)
 void BoundingBox::cleanUp()
 {
   
-/*
-  GLWidget &g = *glwidget();
-  g.glDeleteBuffers(coordBufferID.size(),  &coordBufferID[0]);
-  g.glDeleteBuffers(normalBuffers.size(), normalBuffers[0]);
-  g.glDeleteBuffers(indexBufferID.size(),  &indexBufferID[0]);
-  g.glDeleteBuffers(colorBuffers.size(),  &colorBuffers[0]);
-  g.glDeleteVertexArrays(VAO.size(), &VAO[0]);
-*/
+	/*
+	GLWidget &g = *glwidget();
+	g.glDeleteBuffers(coordBufferID.size(),  &coordBufferID[0]);
+	g.glDeleteBuffers(normalBuffers.size(), normalBuffers[0]);
+	g.glDeleteBuffers(indexBufferID.size(),  &indexBufferID[0]);
+	g.glDeleteBuffers(colorBuffers.size(),  &colorBuffers[0]);
+	g.glDeleteVertexArrays(VAO.size(), &VAO[0]);
+	*/
 
-  vertices.clear();
-  indices.clear();
+	vertices.clear();
+	indices.clear();
 }
 
 

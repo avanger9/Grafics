@@ -14,7 +14,7 @@ class ModelInfo1 : public QObject, Plugin
   Q_INTERFACES(Plugin)
 
   public:
-    void postFrame() Q_DECL_OVERRIDE;
+  	void postFrame() Q_DECL_OVERRIDE;
     void onPluginLoad() Q_DECL_OVERRIDE;
     
   private:
