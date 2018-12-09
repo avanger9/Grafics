@@ -7,5 +7,3 @@ SUBDIRS += showHelpNg
 SUBDIRS += alphaBlending
 
 # Afegiu a SUBDIRS els vostres plugins!
-
-SUBDIRS += draw_bounding_box

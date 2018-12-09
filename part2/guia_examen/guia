@@ -18,8 +18,9 @@ al viewer/core/{include, src} tenim totes les classes que s'implementa: [] repre
 
 metodes tipics: preFrame, postFrame, onPluginObject, onObjectAdd
 acces dades: glwidget, scene, camera
-scene()->objects()->size()
-camera()->getObs()
+scene()->objects()->size() -> num objectes
+camera()->getObs() -> pos de l'observador
+GLWidget *glwidget() -> dona acces camera i escena
 glwidget()->defaultProgram()
 
 -> quan es carrega un plugin es crida a onpluginload 
@@ -67,6 +68,23 @@ void ::postFrame()
 	QMatrix4x4 mvp = camera()->projectionMatrix() * camera()->viewMatrix();
 	program->setUniformValue("modelViewProjectionMatrix", mvp);
 }
+
+/ --------------------------------------------------------------------------------
+/ ----------------------------------- 2. Geometry shader -------------------------
+/ --------------------------------------------------------------------------------
+
+gl_in[i].gl_position
+in vec4 vfrontColor[], in vec3 vnormal[], in vec2 vtexCoord[]  -> atributs dels vertex de la primitiva
+
+gl_position
+out vec4 gfrontColor, out vec3 gnormal, out vec2 gtexCoord -> sortida per vertex
+EmitVertex() -> emet un vertex amb els atributs actuals
+EndPrimitive() -> emet una primitiva amb els vertex actuals
+
+for (int i=0; i<3; ++i) { gl_position = gl_in[i].gl_position; EmitVertex(); } EndPrimitive();
+
+Primitives (glBegin..): GL_POINT, GL_TRIANGLES, GL_LINES_ADJACENCY, GL_TRIANGLES_ADJACENCY, etc.
+Un GS nomes pot generar: Punts (GL_POINT), segments (GL_LINE_STRIP), triangles (GL_TRIANGLE_STRIP)
 
 / --------------------------------------------------------------------------------
 / ----------------------------------- 3. VBA i VBO -------------------------------
@@ -155,6 +173,290 @@ glDeleteBuffers(1, &normalBufferID);
 glDeleteBuffers(1, &indexBufferID);
 glDeleteVertexArrays(1, &VAO);
 
-/ ----------------------
-/ ----- FI VAO VBO -----
-/ ----------------------
+/ -------------------------------------------------------------------------------
+/ ------------------------- 4. Action plugins -----------------------------------
+/ -------------------------------------------------------------------------------
+
+virtual void keyPressEvent (QKeyEvent *), keyReleaseEvent, mouseMoveEvent (QMouseEvent *), mousePressEvent, mouseReleaseEvent, wheelEvent (QWheelEvent *)
+
+
+/ -------------------------------------------------------------------------------
+/ ------------------------- 5. render plugins -----------------------------------
+/ -------------------------------------------------------------------------------
+
+1. activar texture mapping
+glEnable(GL_TEXTURE_1D|2D|3D);
+
+2. activar texture object
+glBindTexture(GL_TEXTURE_2D, id);
+
+3. establir funcio de texturacio
+glTexEnvi(...);
+
+4. dibuixar primitiva
+glBegin(GL_POLYGON);
+glTexCoord2d(0,0);
+glVertex3d(...);
+...
+
+/ -------------------------------------------------------------------------------
+/ ------------------------- Base dels programes ---------------------------------
+/ -------------------------------------------------------------------------------
+
+
+al .h afegir abans
+  	QOpenGLShaderProgram* program;
+    QOpenGLShader *fs, *vs;
+
+void ::onPluginLoad()
+{
+	vs = new QOpenGLShader(QOpenGLShader::Vertex, this);
+	vs->compileSourceFile("vertex.vert");
+
+	fs = new QOpenGLShader(QOpenGLShader::Fragment, this);
+	fs->compileSourceFile("fragment.frag");
+
+	program = new QOpenGLShaderProgram(this);
+	program->addShader(vs);
+	program->addShader(fs);
+	program->link();
+
+}
+
+per pintar
+
+	QFont f;
+	f.setPixelSize(32);
+	painter.begin(glwidget());
+	painter.setFont(f);
+	int x = 15; int y = 40;
+	painter.drawText(x, y, nobj.arg(nObjectes));
+	painter.drawText(x, y+10, npol.arg(nPoligons));
+	painter.drawText(x, y+20, nver.arg(nVertexs));
+	painter.drawText(x, y+30, nper.arg(propTriangles));
+	painter.end();
+
+pels VAO i VBO
+
+al .h afegim
+	void addVBO(unsigned int currentObject);
+	vector<GLuint> VAOs;          // ID of VAOs
+	vector<GLuint> coordBuffers;  // ID of vertex coordinates buffer 
+	vector<GLuint> normalBuffers; // ID of normal components buffer 
+	vector<GLuint> stBuffers;     // ID of (s,t) buffer 
+	vector<GLuint> colorBuffers;  // ID of color buffer  
+	vector<GLuint> indexBuffers;  // ID of index buffer
+	vector<GLuint> numIndices;    // Size (number of indices) in each index buffer
+
+al .cpp
+
+	// vector pels triangles d'un cub de 6 cares (12 triangles * 3 punts/triangle = 36 punts)
+	GLfloat cube_vertices[]={
+		1, 1, 1,
+		0, 1, 1,
+		1, 0, 1,
+		0, 0, 1,
+		1, 0, 0,
+		0, 0, 0,
+		1, 1, 0,
+		0, 1, 0,
+		1, 1, 1,
+		0, 1, 1,
+		0, 1, 1,
+		0, 1, 0,
+		0, 0, 1,
+		0, 0, 0,
+		1, 0, 1,
+		1, 0, 0,
+		1, 1, 1,
+		1, 1, 0
+	};
+
+bool DrawVBOng::drawObject(int i)
+{
+	GLWidget &g = *glwidget();
+	g.makeCurrent();
+	g.glBindVertexArray(VAOs[i]);
+	g.glDrawArrays(GL_TRIANGLES, 0, numIndices[i]);
+	g.glBindVertexArray(0);
+	return true;
+}
+
+bool DrawVBOng::drawScene()
+{
+	GLWidget &g = *glwidget();
+	g.makeCurrent();
+	for(unsigned int i=0; i<VAOs.size(); i++) // for each buffer (that is, for each object)
+		drawObject(i);
+	return true;
+}
+
+void DrawVBOng::onPluginLoad()
+{
+	for(unsigned int i=0; i<scene()->objects().size(); i++)
+		addVBO(i);
+}
+
+void DrawVBOng::onObjectAdd()
+{
+	addVBO( scene()->objects().size() - 1 );
+}
+
+void DrawVBOng::addVBO(unsigned int currentObject)
+	{
+	//
+	// For simplicity, we construct VBOs with replicated vertices (a copy
+	// for each triangle to which they belong:
+	//
+	const Object& obj = scene()->objects()[currentObject];
+	unsigned int numvertices = obj.faces().size()*3;  // it's all triangles...
+	vector<float> vertices; // (x,y,z)    Final size: 9*number of triangles
+	vector<float> normals;  // (nx,ny,nz) Final size: 9*number of triangles
+	vector<float> colors;   // (r, g, b)  Final size: 9*number of triangles
+	vector<float> texCoords;// (s, t)     Final size: 6*number of triangles
+	auto verts = obj.vertices();
+	auto Ns = obj.vertNormals();
+	auto texcords = obj.vertTexCoords();
+
+	for (auto&& f: obj.faces()) {
+		Point P = verts[f.vertexIndex(0)].coord();
+		vertices.push_back(P.x()); vertices.push_back(P.y()); vertices.push_back(P.z());
+		Vector V=Ns[f.normalIndex(0)];
+		normals.push_back(V.x()); normals.push_back(V.y()); normals.push_back(V.z());
+		colors.push_back(fabs(V.x())); colors.push_back(fabs(V.y())); colors.push_back(fabs(V.z()));
+		auto TC=texcords[f.texcoordsIndex(0)];
+		texCoords.push_back(TC.first);  texCoords.push_back(TC.second);
+
+		P = verts[f.vertexIndex(1)].coord();
+		vertices.push_back(P.x()); vertices.push_back(P.y()); vertices.push_back(P.z());
+		V=Ns[f.normalIndex(1)];
+		normals.push_back(V.x()); normals.push_back(V.y()); normals.push_back(V.z());
+		colors.push_back(fabs(V.x())); colors.push_back(fabs(V.y())); colors.push_back(fabs(V.z()));
+		TC=texcords[f.texcoordsIndex(1)];
+		texCoords.push_back(TC.first);  texCoords.push_back(TC.second);
+
+		P = verts[f.vertexIndex(2)].coord();
+		vertices.push_back(P.x()); vertices.push_back(P.y()); vertices.push_back(P.z());
+		V=Ns[f.normalIndex(2)];
+		normals.push_back(V.x()); normals.push_back(V.y()); normals.push_back(V.z());
+		colors.push_back(fabs(V.x())); colors.push_back(fabs(V.y())); colors.push_back(fabs(V.z()));
+		TC=texcords[f.texcoordsIndex(2)];
+		texCoords.push_back(TC.first);  texCoords.push_back(TC.second);
+	}
+
+	assert(vertices.size() == 3*numvertices);
+	assert(normals.size() == 3*numvertices);
+	assert(colors.size() == 3*numvertices);
+	assert(texCoords.size() == 2*numvertices);
+
+	// Step 2: Create VAO and empty buffers (coords, normals, ...)
+	GLWidget& g = *glwidget();
+	GLuint VAO;
+	g.glGenVertexArrays(1, &VAO);
+	VAOs.push_back(VAO);
+	g.glBindVertexArray(VAO);
+
+	GLuint coordBufferID;
+	g.glGenBuffers(1, &coordBufferID);
+	coordBuffers.push_back(coordBufferID);
+
+	GLuint normalBufferID;
+	g.glGenBuffers(1, &normalBufferID);
+	normalBuffers.push_back(normalBufferID);
+
+	GLuint stBufferID;
+	g.glGenBuffers(1, &stBufferID);
+	stBuffers.push_back(stBufferID);
+
+	GLuint colorBufferID;
+	g.glGenBuffers(1, &colorBufferID);
+	colorBuffers.push_back(colorBufferID);
+
+	numIndices.push_back(numvertices);
+	// Step 3: Define VBO data (coords, normals, ...)
+	g.glBindBuffer(GL_ARRAY_BUFFER, coordBufferID);
+	g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*vertices.size(), &vertices[0], GL_STATIC_DRAW);
+	g.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0); 
+	g.glEnableVertexAttribArray(0);
+
+	g.glBindBuffer(GL_ARRAY_BUFFER, normalBufferID);
+	g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*normals.size(), &normals[0], GL_STATIC_DRAW);
+	g.glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	g.glEnableVertexAttribArray(1);
+
+	g.glBindBuffer(GL_ARRAY_BUFFER, colorBufferID);
+	g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*colors.size(), &colors[0], GL_STATIC_DRAW);
+	g.glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	g.glEnableVertexAttribArray(2);
+
+	g.glBindBuffer(GL_ARRAY_BUFFER, stBufferID);
+	g.glBufferData(GL_ARRAY_BUFFER, sizeof(float)*texCoords.size(), &texCoords[0], GL_STATIC_DRAW);
+	g.glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	g.glEnableVertexAttribArray(3);
+
+	g.glBindBuffer(GL_ARRAY_BUFFER,0);
+	g.glBindVertexArray(0);
+}
+
+void draw_smooth::cleanUp() {
+	GLWidget &g = *glwidget();
+	g.glDeleteBuffers(coordBuffers.size(),  &coordBuffers[0]);
+	g.glDeleteBuffers(normalBuffers.size(), &normalBuffers[0]);
+	g.glDeleteBuffers(stBuffers.size(),  &stBuffers[0]);
+	g.glDeleteBuffers(colorBuffers.size(),  &colorBuffers[0]);
+	g.glDeleteVertexArrays(VAOs.size(), &VAOs[0]);
+	coordBuffers.clear();
+	normalBuffers.clear();
+	stBuffers.clear();
+	colorBuffers.clear();
+	VAOs.clear();
+	numIndices.clear();
+}
+
+
+    g.glActiveTexture(GL_TEXTURE0);
+    g.glGenTextures( 1, &textureId);
+    g.glBindTexture(GL_TEXTURE_2D, textureId);
+    g.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    g.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    g.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+		      GL_LINEAR_MIPMAP_LINEAR );
+    g.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    g.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, IMAGE_WIDTH, IMAGE_HEIGHT,
+		   0, GL_RGB, GL_FLOAT, NULL);
+    g.glBindTexture(GL_TEXTURE_2D, 0);
+    // Resize to power-of-two viewport
+    g.resize(IMAGE_WIDTH,IMAGE_HEIGHT);
+
+paintgl texture
+
+    GLWidget & g = *glwidget();
+    // Pass 1. Draw scene
+    g.glClearColor(0,0,0,0);
+    g.glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    if (drawPlugin()) drawPlugin()->drawScene();
+
+    // Get texture
+    g.glBindTexture(GL_TEXTURE_2D, textureId);
+    g.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0,
+			  IMAGE_WIDTH, IMAGE_HEIGHT);
+    g.glGenerateMipmap(GL_TEXTURE_2D);
+
+    // Pass 2. Draw quad using texture
+    g.glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+
+    program->bind();
+    program->setUniformValue("colorMap", 0);
+    program->setUniformValue("SIZE", float(IMAGE_WIDTH));  
+
+// quad covering viewport 
+    program->setUniformValue("modelViewProjectionMatrix", QMatrix4x4() );  
+
+    drawRect(g);
+
+    g.defaultProgram()->bind();
+    g.glBindTexture(GL_TEXTURE_2D, 0);
+
+    return true;
+    
+    
