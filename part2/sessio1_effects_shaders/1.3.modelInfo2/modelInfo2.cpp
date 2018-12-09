@@ -38,7 +38,7 @@ void ModelInfo2::postFrame()
 	painter.begin(glwidget());
 	painter.setFont(f);
 	int x = 15; int y = 40;
-	painter.drawText(x, y, nobj.arg(nObjectes));
+	painter.drawText(x, y-10, nobj.arg(nObjectes));
 	painter.drawText(x, y+10, npol.arg(nPoligons));
 	painter.drawText(x, y+20, nver.arg(nVertexs));
 	painter.drawText(x, y+30, nper.arg(propTriangles));
